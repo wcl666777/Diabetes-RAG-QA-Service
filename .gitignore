@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# 环境变量（含密钥，禁止提交）
+.env
+.env.local
+
+# 本地大模型权重（体积巨大，按需下载/软链）
+models/
+
+# 数据库 / 向量库落盘文件
+*.db
+*.sqlite3
+faiss_index/
+chroma/
+
+# 日志
+logs/
+*.log
+
+# 测试缓存
+.pytest_cache/
+
+# BERT 训练中间产物（checkpoint / 日志，模型成品在 models/ 下）
+bert_results/
+bert_logs/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
