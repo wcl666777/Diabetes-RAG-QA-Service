@@ -17,8 +17,8 @@ from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-# 页面内图片面积占比超过该阈值才触发整页 OCR（降低开销）
-_PDF_OCR_THRESHOLD = (0.6, 0.6)
+# PDF 单页文字层字符数低于该阈值才视为扫描件、触发整页 OCR（降低无谓开销）
+_PDF_MIN_TEXT_CHARS = 30
 
 # 支持的扩展名
 SUPPORTED_EXTS = {".txt", ".md", ".markdown", ".docx", ".pptx", ".ppt", ".pdf",
@@ -115,7 +115,7 @@ def _load_pptx(path: str) -> str:
 
 
 def _load_pdf(path: str) -> str:
-    """PDF：优先提取文本；若某页文本稀少（扫描版），对该页位图执行 OCR。"""
+    """PDF：优先取文字层；仅某页文字稀少（真扫描件）时才对整页位图做 OCR。"""
     import fitz  # PyMuPDF
     from app.ingestion.ocr import ocr_image
 
@@ -123,33 +123,22 @@ def _load_pdf(path: str) -> str:
     parts: List[str] = []
     for page in doc:
         text = page.get_text().strip()
-        # 页面图片面积占比，用于判断是否扫描版
-        images = page.get_images(full=True)
-        page_area = max(page.rect.width * page.rect.height, 1.0)
-        img_area = 0.0
-        for img in images:
-            try:
-                xref = img[0]
-                rects = page.get_image_rects(xref)
-                for r in rects:
-                    img_area += r.width * r.height
-            except Exception:
-                continue
-        ratio = img_area / page_area
-
-        if text and ratio < _PDF_OCR_THRESHOLD[0]:
+        # 已有足够文字层 → 直接使用。
+        # 注：不能按「图片面积占比」判断，否则「整页大图 + 文字层」的 PDF 会被误判成扫描件，
+        # 白白对已有的文字重复 OCR（既慢、质量也不如原文字层）。
+        if len(text) >= _PDF_MIN_TEXT_CHARS:
             parts.append(text)
-        else:
-            # 文本稀少或整页为大图 → 渲染成位图 OCR
-            try:
-                pix = page.get_pixmap(dpi=200)
-                import numpy as np
-                arr = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
-                ocr_text = ocr_image(arr)
-                parts.append(ocr_text or text)
-            except Exception as e:
-                logger.warning("loader.pdf_ocr_failed | page=%s | error=%s", page.number, e)
-                parts.append(text)
+            continue
+        # 文字稀少 → 按扫描件处理：整页渲染成位图后 OCR
+        try:
+            pix = page.get_pixmap(dpi=200)
+            import numpy as np
+            arr = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
+            ocr_text = ocr_image(arr)
+            parts.append(ocr_text or text)
+        except Exception as e:
+            logger.warning("loader.pdf_ocr_failed | page=%s | error=%s", page.number, e)
+            parts.append(text)
     doc.close()
     return "\n".join(p for p in parts if p)
 

@@ -4,8 +4,14 @@
 用法：from app.config import get_settings; settings = get_settings()
 """
 from functools import lru_cache
+from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
+
+# 服务根目录（rag_service/）：所有相对路径以此为基准，
+# 使服务从任意工作目录启动都能正确定位 .env / models / logs / data。
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
@@ -15,7 +21,7 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8001
     log_level: str = "INFO"
-    log_dir: str = "./logs"             # 日志落盘目录（相对服务启动目录）
+    log_dir: str = str(BASE_DIR / "logs")   # 日志落盘目录（相对 rag_service 根目录，与启动目录无关）
 
     # ── 大模型（DeepSeek，走 OpenAI 兼容接口）──
     deepseek_api_key: str = ""          # 必填：DeepSeek API Key
@@ -35,10 +41,16 @@ class Settings(BaseSettings):
     redis_password: str = ""
     cache_ttl_seconds: int = 3600       # 缓存过期时间（默认 1 小时）
 
+    # ── 服务鉴权（REST 与 MCP 的内部调用密钥）──
+    rag_api_key: str = ""               # 必填：调用方需在请求头携带 X-API-Key
+
+    # ── 知识库构建目录白名单 ──
+    kb_allowed_dir: str = str(BASE_DIR / "data")   # /kb/build 仅允许构建该目录（及其子目录）内的文档
+
     # ── 本地模型权重路径 ──
     # 说明：默认指向本地 models 目录，也可改为其他已下载的权重路径。
-    bge_m3_model_path: str = "./models/bge-m3"
-    reranker_model_path: str = "./models/bge-reranker-large"
+    bge_m3_model_path: str = str(BASE_DIR / "models" / "bge-m3")
+    reranker_model_path: str = str(BASE_DIR / "models" / "bge-reranker-large")
 
     # ── 检索参数 ──
     hybrid_candidate_k: int = 20        # 稠密 + 稀疏 各自召回数
@@ -64,14 +76,14 @@ class Settings(BaseSettings):
     candidate_m: int = 2                  # 重排后返回的父块数（送入大模型）
 
     # ── 查询分类 / 检索策略 ──
-    classifier_model_path: str = "./models/bert_query_classifier"
+    classifier_model_path: str = str(BASE_DIR / "models" / "bert_query_classifier")
     enable_query_classifier: bool = True  # 是否启用 BERT 查询分类
     enable_strategy_selector: bool = True # 是否启用 LLM 检索策略选择
     service_phone: str = "12345"          # 兜底话术里的客服电话
 
     # ── 模型语义分块（默认关闭）──
     use_semantic_splitter: bool = False
-    semantic_splitter_model_path: str = "./models/nlp_bert_document-segmentation_chinese-base"
+    semantic_splitter_model_path: str = str(BASE_DIR / "models" / "nlp_bert_document-segmentation_chinese-base")
 
     @property
     def database_url(self) -> str:
@@ -81,8 +93,23 @@ class Settings(BaseSettings):
             f"@{self.db_host}:{self.db_port}/{self.db_name}?charset=utf8mb4"
         )
 
+    @field_validator(
+        "log_dir",
+        "kb_allowed_dir",
+        "bge_m3_model_path",
+        "reranker_model_path",
+        "classifier_model_path",
+        "semantic_splitter_model_path",
+        mode="after",
+    )
+    @classmethod
+    def _resolve_paths(cls, v: str) -> str:
+        """把相对路径统一解析到 BASE_DIR 下，兼容 .env 中配置的相对路径。"""
+        p = Path(v).expanduser()
+        return str(p if p.is_absolute() else (BASE_DIR / p))
+
     class Config:
-        env_file = ".env"
+        env_file = str(BASE_DIR / ".env")
         env_file_encoding = "utf-8"
         case_sensitive = False
         extra = "ignore"

@@ -54,7 +54,8 @@ modelscope==1.40.2
 ragas==0.4.3
 
 # ===== MCP Server =====
-mcp>=1.9.0
+# 上限 <2.0.0：2.x 的 FastMCP API 与当前实现不兼容（stateless_http / json_response）
+mcp>=1.9.0,<2.0.0
 
 # ===== 测试 =====
 pytest==8.3.5

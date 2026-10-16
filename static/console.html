@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>知识库管理台 · RAG 服务</title>
+<script>window.__RAG_API_KEY__ = __RAG_API_KEY_JSON__;</script>
+<style>
+  :root {
+    --bg: #0f1720;
+    --panel: #17212b;
+    --panel-2: #1e2a36;
+    --border: #2a3846;
+    --text: #e6edf3;
+    --muted: #8b9bab;
+    --accent: #3fa9f5;
+    --ok: #2ecc8f;
+    --warn: #f2b33d;
+    --err: #f2685a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    font-size: 14px; line-height: 1.6;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 14px 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .spacer { flex: 1; }
+  .back {
+    color: var(--accent); text-decoration: none; font-size: 13px;
+    border: 1px solid var(--border); padding: 6px 12px; border-radius: 7px;
+  }
+  .back:hover { border-color: var(--accent); }
+  main { max-width: 1080px; margin: 0 auto; padding: 20px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 14px; margin: 0 0 12px; font-weight: 600; color: var(--text); }
+  label { color: var(--muted); font-size: 12px; display: block; margin-bottom: 4px; }
+  input[type=text], input[type=password], textarea, select {
+    width: 100%; padding: 8px 10px; border-radius: 7px;
+    border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+    font-family: inherit; font-size: 13px; outline: none;
+  }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 64px; }
+  button {
+    padding: 8px 16px; border-radius: 7px; border: 1px solid var(--accent);
+    background: var(--accent); color: #06202f; font-weight: 600; cursor: pointer;
+    font-family: inherit; font-size: 13px;
+  }
+  button:hover { filter: brightness(1.08); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.ghost { background: transparent; color: var(--accent); }
+  .row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  .row > .grow { flex: 1; min-width: 200px; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .badge {
+    display: inline-block; padding: 2px 9px; border-radius: 20px;
+    font-size: 12px; font-weight: 600; margin-right: 6px;
+  }
+  .badge.faq   { background: rgba(46,204,143,.16); color: var(--ok); }
+  .badge.rag   { background: rgba(63,169,245,.16); color: var(--accent); }
+  .badge.none  { background: rgba(242,179,61,.16); color: var(--warn); }
+  .badge.gray  { background: rgba(139,155,171,.16); color: var(--muted); }
+  .meta-grid { display: flex; flex-wrap: wrap; gap: 10px 28px; margin: 4px 0 14px; }
+  .meta-item .k { color: var(--muted); font-size: 12px; }
+  .meta-item .v { font-weight: 600; }
+  .answer {
+    background: var(--panel-2); border-left: 3px solid var(--accent);
+    border-radius: 6px; padding: 12px 14px; white-space: pre-wrap; word-break: break-word;
+  }
+  .doc {
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; margin-top: 10px; background: var(--panel-2);
+  }
+  .doc .doc-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .doc .rank { color: var(--muted); font-weight: 600; }
+  .doc .src { color: var(--accent); font-size: 12px; }
+  .doc .score-num { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .bar { height: 4px; border-radius: 3px; background: #24303c; overflow: hidden; margin: 6px 0 8px; }
+  .bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--ok)); }
+  .doc .content { color: #cfdae5; font-size: 13px; white-space: pre-wrap; word-break: break-word;
+    max-height: 120px; overflow: auto; }
+  .dropzone {
+    border: 1.5px dashed var(--border); border-radius: 10px; padding: 22px 16px;
+    text-align: center; cursor: pointer; transition: .15s; background: var(--panel-2);
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); background: rgba(63,169,245,.06); }
+  .dz-icon { font-size: 22px; }
+  .dz-main { margin-top: 6px; font-size: 13.5px; }
+  .dz-link { color: var(--accent); font-weight: 600; }
+  .dz-sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .filelist { margin-top: 10px; }
+  .fileitem {
+    display: flex; align-items: center; gap: 10px; padding: 7px 10px; margin-top: 6px;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+  }
+  .fileitem .fi-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fileitem .fi-size { color: var(--muted); font-size: 12px; }
+  .fileitem .fi-del {
+    border: 0; background: transparent; color: var(--muted); font-size: 15px; line-height: 1; padding: 2px 5px; border-radius: 5px;
+  }
+  .fileitem .fi-del:hover { color: var(--err); background: rgba(242,104,90,.12); }
+  .status { font-size: 12px; }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--err); }
+  .empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>知识库管理台</h1>
+    <div class="sub">意图分类 · 检索策略 · 混合召回 · 精排分数 · 生成答案 全链路可视化</div>
+  </div>
+  <div class="spacer"></div>
+  <a class="back" href="/">← 返回问答</a>
+</header>
+
+<main>
+  <!-- 文档上传入库 -->
+  <section class="card">
+    <h2>上传文档并更新知识库</h2>
+    <div class="dropzone" id="dropzone">
+      <div class="dz-icon">📄</div>
+      <div class="dz-main">拖拽 PDF / Word / PPT / 图片 / TXT 到此处，或 <span class="dz-link">点击选择文件</span></div>
+      <div class="dz-sub">支持批量上传；上传后自动解析、父子块切分并写入向量库</div>
+    </div>
+    <input type="file" id="fileInput" multiple hidden />
+    <div class="filelist" id="fileList"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="uploadBtn" disabled>上传并更新知识库</button>
+      <button class="ghost" id="clearFilesBtn" hidden>清空选择</button>
+      <span id="uploadStatus" class="status"></span>
+    </div>
+    <div class="hint">当前向量库文档数：<b id="kbCount">--</b>　<button class="ghost" id="countBtn">刷新条数</button></div>
+  </section>
+
+  <!-- 按目录重建（高级） -->
+  <section class="card">
+    <h2>按目录重建知识库（高级）</h2>
+    <div class="row">
+      <div class="grow">
+        <label>文档目录（须位于 KB_ALLOWED_DIR 之内）</label>
+        <input id="kbDir" type="text" value="./data" />
+      </div>
+      <button id="buildBtn">重建知识库</button>
+    </div>
+    <div class="hint">会扫描该目录下全部文档重新入库；子块 id 由内容决定，重复构建不会产生重复数据。<span id="kbStatus" class="status"></span></div>
+  </section>
+
+  <!-- 检索调试 -->
+  <section class="card">
+    <h2>检索调试</h2>
+    <div class="row">
+      <div class="grow">
+        <label>患者问题</label>
+        <textarea id="question">出院后能不能吃西瓜？</textarea>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="queryBtn">执行检索并生成</button>
+      <span id="queryStatus" class="status"></span>
+    </div>
+    <div id="result" style="margin-top:14px"></div>
+  </section>
+
+  <!-- 评测说明 -->
+  <section class="card">
+    <h2>RAGAS 离线评测</h2>
+    <div class="muted">
+      四指标（faithfulness / answer_relevancy / context_precision / context_recall）为离线批跑，本地执行：
+    </div>
+    <div class="hint"><code>python -m rag_assessment.rag_as --data ./rag_assessment/rag_evaluate_data.json</code></div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// ── API Key：直接使用服务端注入的密钥（页面同源下发，无需手动填写）──
+const apiKey = () => window.__RAG_API_KEY__ || "";
+
+function setStatus(id, text, cls) {
+  const el = $(id);
+  el.textContent = text || "";
+  el.className = "status " + (cls || "");
+}
+
+// ── 统一请求封装：业务接口与 MCP 均需 X-API-Key ──
+async function request(path, { method = "POST", body } = {}) {
+  // Accept 必须显式声明 application/json：MCP 端点（streamable HTTP）要求该头，否则返回 406
+  const headers = { "Content-Type": "application/json", "Accept": "application/json" };
+  const key = apiKey();
+  if (key) headers["X-API-Key"] = key;
+  const resp = await fetch(path, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (resp.status === 401) throw new Error("接口鉴权失败（API Key 无效或缺失），请联系管理员检查 RAG_API_KEY 配置");
+  if (resp.status === 503) throw new Error("RAG 服务未配置 RAG_API_KEY，已拒绝访问");
+  if (!resp.ok) {
+    let detail = resp.statusText;
+    try { detail = (await resp.json()).detail || detail; } catch (e) {}
+    throw new Error(`${resp.status} ${detail}`);
+  }
+  return resp.json();
+}
+
+// ── MCP 调用（JSON-RPC）：复用 Agent 侧同款协议 ──
+async function mcpCall(tool, args) {
+  const data = await request("/rag/mcp", {
+    body: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: tool, arguments: args } },
+  });
+  if (data.error) throw new Error(data.error.message || "MCP 调用失败");
+  const content = (data.result && data.result.content) || [];
+  const items = [];
+  for (const item of content) {
+    if (!item || item.type !== "text") continue;
+    let parsed;
+    try { parsed = JSON.parse(item.text); } catch (e) { continue; }
+    // FastMCP 两种包装都要兼容：整个列表在一个 TextContent 里 / 每条文档一个 TextContent
+    if (Array.isArray(parsed)) return parsed;
+    items.push(parsed);
+  }
+  return items;
+}
+
+const esc = (s) => String(s == null ? "" : s)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// ── 文档上传入库 ──
+let pickedFiles = [];
+const dz = $("dropzone");
+
+function fmtSize(n) {
+  if (n < 1024) return n + " B";
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+  return (n / 1024 / 1024).toFixed(2) + " MB";
+}
+
+function renderPick() {
+  const box = $("fileList");
+  if (!pickedFiles.length) {
+    box.innerHTML = "";
+    $("clearFilesBtn").hidden = true;
+    $("uploadBtn").disabled = true;
+    return;
+  }
+  box.innerHTML = pickedFiles.map((f, i) =>
+    `<div class="fileitem">
+       <span class="fi-name">${esc(f.name)}</span>
+       <span class="fi-size">${fmtSize(f.size)}</span>
+       <button class="fi-del" data-fi="${i}" title="移除">×</button>
+     </div>`).join("");
+  $("clearFilesBtn").hidden = false;
+  $("uploadBtn").disabled = false;
+}
+
+function addFiles(list) {
+  Array.from(list || []).forEach((f) => {
+    // 同名同大小视为同一文件，避免重复选择
+    if (!pickedFiles.some((x) => x.name === f.name && x.size === f.size)) pickedFiles.push(f);
+  });
+  renderPick();
+}
+
+dz.onclick = () => $("fileInput").click();
+$("fileInput").onchange = () => { addFiles($("fileInput").files); $("fileInput").value = ""; };
+["dragenter", "dragover"].forEach((ev) => dz.addEventListener(ev, (e) => {
+  e.preventDefault(); dz.classList.add("drag");
+}));
+["dragleave", "drop"].forEach((ev) => dz.addEventListener(ev, (e) => {
+  e.preventDefault(); dz.classList.remove("drag");
+}));
+dz.addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
+$("clearFilesBtn").onclick = () => { pickedFiles = []; renderPick(); setStatus("uploadStatus", "", ""); };
+$("fileList").addEventListener("click", (e) => {
+  const del = e.target.closest("[data-fi]");
+  if (del) { pickedFiles.splice(Number(del.getAttribute("data-fi")), 1); renderPick(); }
+});
+
+$("uploadBtn").onclick = async () => {
+  if (!pickedFiles.length) return;
+  const files = pickedFiles.slice();
+  const key = apiKey();
+  $("uploadBtn").disabled = true;
+
+  let insertedTotal = 0;
+  const failed = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    setStatus("uploadStatus", `上传并入库中…（${i + 1}/${files.length}：${f.name}）`, "");
+    try {
+      // 原始字节流上传：body 直接放 File，Content-Type 用 octet-stream（无需 multipart 依赖）
+      const headers = { "Content-Type": "application/octet-stream" };
+      if (key) headers["X-API-Key"] = key;
+      const resp = await fetch("/api/v1/kb/upload?filename=" + encodeURIComponent(f.name), {
+        method: "POST",
+        headers,
+        body: f,
+      });
+      if (resp.status === 401) throw new Error("API Key 无效或缺失");
+      if (resp.status === 503) throw new Error("RAG 服务未配置 RAG_API_KEY，已拒绝访问");
+      if (!resp.ok) {
+        let detail = resp.statusText;
+        try { detail = (await resp.json()).detail || detail; } catch (e) {}
+        throw new Error(`${resp.status} ${detail}`);
+      }
+      const r = await resp.json();
+      insertedTotal += r.inserted_chunks;
+      $("kbCount").textContent = r.doc_count;
+    } catch (e) {
+      failed.push(`${f.name}：${e.message}`);
+    }
+  }
+
+  if (failed.length) {
+    setStatus("uploadStatus",
+      `完成：入库 ${insertedTotal} 个子块，${failed.length} 个失败（${failed.join("；")}）`, "err");
+  } else {
+    setStatus("uploadStatus", `完成：${files.length} 个文件共入库 ${insertedTotal} 个子块`, "ok");
+  }
+  pickedFiles = [];
+  renderPick();
+};
+
+// ── 知识库：条数 / 重建 ──
+async function loadCount() {
+  try {
+    const r = await request("/api/v1/kb/count", { method: "GET" });
+    $("kbCount").textContent = r.doc_count;
+  } catch (e) { setStatus("kbStatus", e.message, "err"); }
+}
+
+$("countBtn").onclick = loadCount;
+
+$("buildBtn").onclick = async () => {
+  const dir = $("kbDir").value.trim();
+  if (!dir) return;
+  $("buildBtn").disabled = true;
+  setStatus("kbStatus", "重建中（大文档较慢）…", "");
+  try {
+    const r = await request("/api/v1/kb/build", { body: { directory: dir } });
+    setStatus("kbStatus", `重建完成，写入 ${r.inserted_chunks} 个子块`, "ok");
+    await loadCount();
+  } catch (e) {
+    setStatus("kbStatus", e.message, "err");
+  } finally {
+    $("buildBtn").disabled = false;
+  }
+};
+
+// ── 检索调试：REST 取答案与链路元信息 + MCP 取召回明细与分数 ──
+function renderMeta(q) {
+  const sourceName = { faq: "FAQ 快车道", rag: "RAG 检索", none: "无命中" }[q.source] || q.source;
+  // FAQ 快车道不经过意图分类，此时 query_category 为空，不显示分类标签
+  const catBadge = !q.query_category ? ""
+    : (q.query_category === "通用知识"
+        ? '<span class="badge gray">通用知识（不检索）</span>'
+        : `<span class="badge rag">${esc(q.query_category)}</span>`);
+  return `
+    <div>
+      <span class="badge ${esc(q.source)}">${esc(sourceName)}</span>${catBadge}
+      ${q.strategy ? `<span class="badge gray">策略：${esc(q.strategy)}</span>` : ""}
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item"><div class="k">精排置信度</div><div class="v">${q.confidence}</div></div>
+      <div class="meta-item"><div class="k">来源数</div><div class="v">${(q.sources || []).length}</div></div>
+      <div class="meta-item"><div class="k">来源文档</div><div class="v">${esc((q.sources || []).join("、") || "—")}</div></div>
+    </div>`;
+}
+
+function renderDocs(docs) {
+  if (!docs.length) return '<div class="empty">无召回结果（可能是通用知识，或知识库为空）</div>';
+  return docs.map((d, i) => {
+    const score = Number(d.score || 0);
+    const pct = Math.max(2, Math.min(100, Math.round(score * 100)));
+    return `
+      <div class="doc">
+        <div class="doc-head">
+          <span class="rank">#${i + 1}</span>
+          <span class="src">${esc(d.source || "未知来源")}</span>
+          <span class="score-num">${score.toFixed(4)}</span>
+        </div>
+        <div class="bar"><i style="width:${pct}%"></i></div>
+        <div class="content">${esc(d.content || "")}</div>
+      </div>`;
+  }).join("");
+}
+
+$("queryBtn").onclick = async () => {
+  const question = $("question").value.trim();
+  if (!question) return;
+  $("queryBtn").disabled = true;
+  $("result").innerHTML = "";
+  setStatus("queryStatus", "检索中（含策略选择 / 重排 / 生成）…", "");
+  try {
+    // ① 主链路：分类 → 策略 → 检索 → 生成（拿到最终答案与元信息）
+    const q = await request("/api/v1/rag/query", { body: { question } });
+    // ② 召回明细：MCP 工具返回每条分块的精排分数
+    let docs = [];
+    try {
+      docs = await mcpCall("search_knowledge_base", { query: question, top_k: 5 });
+    } catch (e) {
+      docs = [];
+    }
+    $("result").innerHTML = `
+      ${renderMeta(q)}
+      <label>生成答案</label>
+      <div class="answer">${esc(q.answer || "（空）")}</div>
+      <label style="margin-top:14px">召回明细（父子块回溯 · 精排分数）</label>
+      ${renderDocs(Array.isArray(docs) ? docs : [])}`;
+    setStatus("queryStatus", "完成", "ok");
+  } catch (e) {
+    setStatus("queryStatus", e.message, "err");
+  } finally {
+    $("queryBtn").disabled = false;
+  }
+};
+
+loadCount();
+</script>
+</body>
+</html>

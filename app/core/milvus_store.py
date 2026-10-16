@@ -117,7 +117,7 @@ def get_collection() -> Collection:
 
 
 def insert_chunks(chunks: List[dict]) -> int:
-    """批量插入子块。
+    """批量写入子块（upsert：同一 id 覆盖写，保证重复上传幂等）。
 
     chunks: [{"id","content","parent_id","parent_content","source","dense","sparse"}]
     """
@@ -133,9 +133,9 @@ def insert_chunks(chunks: List[dict]) -> int:
         [np.asarray(c["dense"], dtype=np.float32).tolist() for c in chunks],
         [c["sparse"] for c in chunks],
     ]
-    col.insert(data)
+    col.upsert(data)
     col.flush()
-    logger.info("milvus.inserted | rows=%d", len(chunks))
+    logger.info("milvus.upserted | rows=%d", len(chunks))
     return len(chunks)
 
 
@@ -205,8 +205,16 @@ def hybrid_search(
 
 
 def count_docs() -> int:
+    """返回集合内子块条数（count(*) 聚合，排除 upsert 逻辑删除的旧行）。
+
+    num_entities 是滞后统计：upsert 以「删除 + 插入」替换旧行，被删除的行要等
+    compaction 后才从统计中消失，直接使用会导致重复上传时条数虚增。
+    """
     connect()
     s = get_settings()
     if not utility.has_collection(s.collection_name):
         return 0
-    return Collection(s.collection_name).num_entities
+    col = Collection(s.collection_name)
+    col.load()
+    res = col.query(expr='id != ""', output_fields=["count(*)"])
+    return int(res[0]["count(*)"]) if res else 0

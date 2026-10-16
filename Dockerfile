@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 # 拷贝源码；模型权重通过 volume 挂载到 /app/models
 COPY app ./app
+COPY static ./static
 
 EXPOSE 8001
 

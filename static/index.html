@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>医学知识问答 · 糖尿病出院随访助手</title>
+<script>window.__RAG_API_KEY__ = __RAG_API_KEY_JSON__;</script>
+<style>
+  :root {
+    --bg: #f4f7f9;
+    --panel: #ffffff;
+    --panel-2: #f7fafb;
+    --border: #e3eaf0;
+    --text: #1f2d3a;
+    --muted: #7d8fa0;
+    --primary: #0d9488;
+    --primary-dark: #0f766e;
+    --primary-soft: #e6f5f3;
+    --danger: #e05252;
+    --shadow: 0 1px 2px rgba(16, 40, 60, .05), 0 6px 20px rgba(16, 40, 60, .06);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, sans-serif;
+    font-size: 14px; line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; cursor: pointer; }
+
+  .app { display: flex; height: 100vh; overflow: hidden; }
+
+  /* ── 侧边栏 ── */
+  .sidebar {
+    width: 268px; flex: 0 0 268px; background: var(--panel);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+    transition: transform .25s ease;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 18px 18px 14px; }
+  .brand-logo {
+    width: 34px; height: 34px; border-radius: 9px; background: var(--primary);
+    display: flex; align-items: center; justify-content: center; color: #fff; flex: 0 0 34px;
+  }
+  .brand-title { font-size: 15px; font-weight: 700; letter-spacing: .2px; }
+  .brand-sub { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+  .new-chat {
+    margin: 4px 14px 12px; padding: 9px 12px; border-radius: 9px;
+    border: 1px dashed var(--border); background: var(--panel-2); color: var(--primary-dark);
+    font-size: 13.5px; font-weight: 600; text-align: left; transition: .15s;
+  }
+  .new-chat:hover { background: var(--primary-soft); border-color: var(--primary); }
+  .sessions { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
+  .sessions .group { font-size: 11px; color: var(--muted); padding: 10px 10px 6px; }
+  .session-item {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px;
+    font-size: 13px; color: #3b4b5a; cursor: pointer; transition: background .15s;
+  }
+  .session-item:hover { background: var(--panel-2); }
+  .session-item.active { background: var(--primary-soft); color: var(--primary-dark); font-weight: 600; }
+  .session-item .t { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .session-item .del {
+    opacity: 0; border: 0; background: transparent; color: var(--muted);
+    font-size: 15px; line-height: 1; padding: 2px 4px; border-radius: 5px;
+  }
+  .session-item:hover .del { opacity: 1; }
+  .session-item .del:hover { color: var(--danger); background: #fdecec; }
+  .sidebar-foot { padding: 10px 14px; border-top: 1px solid var(--border); }
+  .foot-link {
+    display: block; font-size: 12.5px; color: var(--muted); text-decoration: none;
+    padding: 6px 8px; border-radius: 7px;
+  }
+  .foot-link:hover { background: var(--panel-2); color: var(--primary-dark); }
+
+  /* ── 主区 ── */
+  .chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .chat-header {
+    display: flex; align-items: center; gap: 10px; padding: 12px 18px;
+    background: rgba(255,255,255,.86); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5;
+  }
+  .chat-title { font-size: 14.5px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .icon-btn {
+    border: 1px solid var(--border); background: var(--panel); color: var(--muted);
+    width: 32px; height: 32px; border-radius: 8px; font-size: 15px; line-height: 1;
+  }
+  .icon-btn:hover { color: var(--primary-dark); border-color: var(--primary); }
+  .only-mobile { display: none; }
+
+  .messages { flex: 1; overflow-y: auto; padding: 22px 18px 8px; }
+  .wrap { max-width: 800px; margin: 0 auto; }
+
+  .empty { text-align: center; padding: 6vh 10px 0; }
+  .empty .hi { font-size: 22px; font-weight: 700; letter-spacing: .3px; }
+  .empty .desc { color: var(--muted); margin-top: 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 26px; }
+  .chip {
+    border: 1px solid var(--border); background: var(--panel); color: #3b4b5a;
+    padding: 10px 15px; border-radius: 20px; font-size: 13px; transition: .15s;
+  }
+  .chip:hover { border-color: var(--primary); color: var(--primary-dark); background: var(--primary-soft); }
+
+  .msg { display: flex; gap: 12px; margin-bottom: 20px; }
+  .msg .avatar {
+    width: 32px; height: 32px; flex: 0 0 32px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+  }
+  .msg.user .avatar { background: #dbeafe; color: #1d4ed8; }
+  .msg.bot .avatar { background: var(--primary); color: #fff; }
+  .msg .body { min-width: 0; flex: 1; }
+  .msg .who { font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .bubble {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 4px 12px 12px 12px;
+    padding: 12px 15px; box-shadow: var(--shadow); word-break: break-word;
+  }
+  .msg.user .bubble {
+    background: var(--primary-soft); border-color: #cbe9e5; border-radius: 12px 4px 12px 12px;
+    box-shadow: none;
+  }
+  .bubble .cite { color: var(--primary-dark); font-weight: 600; }
+  .bubble p { margin: 0 0 8px; }
+  .bubble p:last-child { margin-bottom: 0; }
+
+  .meta-row { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-top: 9px; }
+  .tag {
+    font-size: 11.5px; padding: 2px 9px; border-radius: 20px; font-weight: 600;
+    background: #eef2f6; color: #5a6b7b;
+  }
+  .tag.faq { background: rgba(13,148,136,.12); color: var(--primary-dark); }
+  .tag.rag { background: rgba(37,99,235,.10); color: #2563eb; }
+  .tag.none { background: rgba(217,119,6,.12); color: #b45309; }
+  .sources { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 7px; }
+  .sources .src {
+    font-size: 11.5px; color: #5a6b7b; background: var(--panel-2);
+    border: 1px solid var(--border); padding: 3px 10px; border-radius: 7px;
+  }
+  .actions { margin-top: 8px; }
+  .actions button {
+    border: 1px solid var(--border); background: transparent; color: var(--muted);
+    font-size: 11.5px; padding: 3px 9px; border-radius: 6px;
+  }
+  .actions button:hover { color: var(--primary-dark); border-color: var(--primary); }
+
+  .cursor { display: inline-block; width: 7px; height: 15px; background: var(--primary);
+    vertical-align: -2px; margin-left: 2px; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 0%,50% { opacity: 1; } 51%,100% { opacity: 0; } }
+
+  .thinking { display: flex; gap: 5px; align-items: center; color: var(--muted); font-size: 13px; }
+  .thinking i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted);
+    display: inline-block; animation: pulse 1.2s infinite ease-in-out; }
+  .thinking i:nth-child(2) { animation-delay: .15s; }
+  .thinking i:nth-child(3) { animation-delay: .3s; }
+  @keyframes pulse { 0%,80%,100% { transform: scale(.6); opacity: .4; } 40% { transform: scale(1); opacity: 1; } }
+
+  .banner {
+    max-width: 800px; margin: 0 auto 14px; padding: 9px 13px; border-radius: 9px;
+    font-size: 12.5px; background: #fdf1f0; border: 1px solid #f6d5d2; color: #b3403a;
+  }
+
+  /* ── 输入区 ── */
+  .composer { padding: 10px 18px 16px; background: linear-gradient(180deg, rgba(244,247,249,0), var(--bg) 40%); }
+  .composer-box {
+    max-width: 800px; margin: 0 auto; display: flex; align-items: flex-end; gap: 10px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 9px 10px 9px 14px; box-shadow: var(--shadow);
+  }
+  .composer-box:focus-within { border-color: var(--primary); }
+  #input {
+    flex: 1; border: 0; outline: none; resize: none; background: transparent; color: var(--text);
+    font-family: inherit; font-size: 14px; line-height: 1.6; max-height: 160px; padding: 4px 0;
+  }
+  .send-btn, .stop-btn {
+    border: 0; border-radius: 10px; padding: 9px 18px; font-size: 13.5px; font-weight: 600; color: #fff;
+    background: var(--primary); transition: .15s;
+  }
+  .send-btn:hover { background: var(--primary-dark); }
+  .send-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .stop-btn { background: #64748b; }
+  .stop-btn:hover { background: #475569; }
+  .composer-hint { max-width: 800px; margin: 8px auto 0; text-align: center; font-size: 11.5px; color: var(--muted); }
+
+  .overlay { display: none; }
+
+  @media (max-width: 820px) {
+    .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 30; transform: translateX(-100%); }
+    .sidebar.open { transform: translateX(0); box-shadow: 0 0 40px rgba(0,0,0,.18); }
+    .only-mobile { display: block; }
+    .overlay.show { display: block; position: fixed; inset: 0; background: rgba(15,25,35,.35); z-index: 20; }
+    .messages { padding: 16px 12px 4px; }
+    .composer { padding: 8px 12px 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12h4l2-6 4 12 2-6h6"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">医学知识问答</div>
+        <div class="brand-sub">糖尿病出院随访 · 权威指南</div>
+      </div>
+    </div>
+    <button class="new-chat" id="newChatBtn">＋ 新建对话</button>
+    <div class="sessions" id="sessionList"></div>
+    <div class="sidebar-foot">
+      <a class="foot-link" href="/console" target="_blank" rel="noopener">⚙ 知识库管理台</a>
+    </div>
+  </aside>
+  <div class="overlay" id="overlay"></div>
+
+  <main class="chat">
+    <header class="chat-header">
+      <button class="icon-btn only-mobile" id="menuBtn" aria-label="菜单">☰</button>
+      <div class="chat-title" id="chatTitle">新对话</div>
+      <button class="icon-btn" id="clearBtn" title="清空当前对话">🗑</button>
+    </header>
+    <div class="messages" id="messages"><div class="wrap" id="msgWrap"></div></div>
+    <div class="composer">
+      <div class="composer-box">
+        <textarea id="input" rows="1" placeholder="输入您的健康问题，例如：出院后能不能吃西瓜？"></textarea>
+        <button class="send-btn" id="sendBtn">发送</button>
+        <button class="stop-btn" id="stopBtn" hidden>停止</button>
+      </div>
+      <div class="composer-hint">Enter 发送 · Shift + Enter 换行 · 内容基于权威医学指南生成，仅供参考</div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var API_KEY = window.__RAG_API_KEY__ || "";
+  var STORE_KEY = "rag_chat_sessions_v1";
+  var MAX_HISTORY_ROUNDS = 3;      // 传给后端的最近对话轮数
+  var API = "/api/v1/rag";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var wrap = $("msgWrap");
+  var input = $("input");
+  var messages = $("messages");
+
+  var sessions = [];               // [{id, title, createdAt, msgs:[{role, content, meta}]}]
+  var activeId = null;
+  var streaming = false;
+  var controller = null;           // AbortController
+  var renderTimer = null;
+
+  // ── 本地存储 ──
+  function load() {
+    try { sessions = JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+    catch (e) { sessions = []; }
+    if (!Array.isArray(sessions)) sessions = [];
+  }
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(sessions)); } catch (e) {}
+  }
+  function active() {
+    for (var i = 0; i < sessions.length; i++) if (sessions[i].id === activeId) return sessions[i];
+    return null;
+  }
+
+  // ── 工具 ──
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+  // 极简排版：转义 → 加粗 → 【来源】高亮 → 换行
+  function renderText(text) {
+    var t = esc(text);
+    t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    t = t.replace(/【([^】]+)】/g, '<span class="cite">【$1】</span>');
+    return t.replace(/\n/g, "<br>");
+  }
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return "s-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+  }
+  function fmtTime(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function toBottom() { messages.scrollTop = messages.scrollHeight; }
+
+  // ── 请求封装 ──
+  function baseHeaders() {
+    var h = { "Content-Type": "application/json", "Accept": "application/json" };
+    if (API_KEY) h["X-API-Key"] = API_KEY;
+    return h;
+  }
+  function friendlyError(status, detail) {
+    if (status === 401) return "接口鉴权失败（API Key 无效）。请联系管理员检查 RAG_API_KEY 配置。";
+    if (status === 503) return "服务未配置 RAG_API_KEY，已拒绝访问。请在 rag_service/.env 中配置后重启。";
+    return (detail || ("请求失败（" + status + "）"));
+  }
+
+  // ── 会话渲染 ──
+  function renderSessions() {
+    var list = $("sessionList");
+    if (!sessions.length) {
+      list.innerHTML = '<div class="group">暂无历史对话</div>';
+      return;
+    }
+    var html = '<div class="group">对话记录</div>';
+    sessions.forEach(function (s) {
+      html += '<div class="session-item' + (s.id === activeId ? " active" : "") + '" data-id="' + esc(s.id) + '">' +
+        '<span class="t">' + esc(s.title || "新对话") + '</span>' +
+        '<button class="del" data-del="' + esc(s.id) + '" title="删除">×</button></div>';
+    });
+    list.innerHTML = html;
+  }
+
+  function renderMessages() {
+    var s = active();
+    $("chatTitle").textContent = (s && s.title) || "新对话";
+    if (!s || !s.msgs.length) { renderEmpty(); return; }
+    wrap.innerHTML = "";
+    s.msgs.forEach(function (m) { wrap.appendChild(buildMessage(m)); });
+    toBottom();
+  }
+
+  function renderEmpty() {
+    wrap.innerHTML =
+      '<div class="empty">' +
+        '<div class="hi">您好，我是您的糖尿病随访助手 👋</div>' +
+        '<div class="desc">基于《中国糖尿病防治指南（2024版）》等权威资料，为您解答出院后的健康问题</div>' +
+        '<div class="chips">' +
+          ['出院后能不能吃西瓜？', '空腹血糖多少算正常？', '二甲双胍应该怎么吃？', '糖尿病足怎么护理？']
+            .map(function (q) { return '<button class="chip" data-q="' + esc(q) + '">' + esc(q) + '</button>'; })
+            .join("") +
+        '</div>' +
+      '</div>';
+  }
+
+  function buildMessage(m) {
+    var isUser = m.role === "user";
+    var el = document.createElement("div");
+    el.className = "msg " + (isUser ? "user" : "bot");
+    var avatar = isUser ? "我" : "AI";
+    var who = isUser ? "我" : "随访助手";
+
+    var body = '<div class="who">' + who + '</div><div class="bubble">' + renderText(m.content || "") + '</div>';
+
+    if (!isUser && m.meta) {
+      var tags = "";
+      var src = m.meta.source;
+      if (src === "faq") tags += '<span class="tag faq">知识库快车道</span>';
+      else if (src === "rag") tags += '<span class="tag rag">权威指南检索</span>';
+      else if (src === "none") tags += '<span class="tag none">未检索到资料</span>';
+      if (tags) body += '<div class="meta-row">' + tags + '</div>';
+      if (m.meta.sources && m.meta.sources.length) {
+        body += '<div class="sources">' + m.meta.sources.map(function (s) {
+          return '<span class="src">📄 ' + esc(s) + '</span>';
+        }).join("") + '</div>';
+      }
+    }
+    if (!isUser && m.content) {
+      body += '<div class="actions"><button data-copy="1">复制</button></div>';
+    }
+
+    el.innerHTML = '<div class="avatar">' + avatar + '</div><div class="body">' + body + '</div>';
+    return el;
+  }
+
+  // ── 新建 / 切换 / 删除 ──
+  function newSession(activate) {
+    var s = { id: uuid(), title: "新对话", createdAt: Date.now(), msgs: [] };
+    sessions.unshift(s);
+    if (activate !== false) activeId = s.id;
+    save();
+    renderSessions();
+    renderMessages();
+    return s;
+  }
+  function deleteSession(id) {
+    sessions = sessions.filter(function (s) { return s.id !== id; });
+    if (activeId === id) activeId = sessions.length ? sessions[0].id : null;
+    save();
+    if (!sessions.length) newSession(); else { renderSessions(); renderMessages(); }
+  }
+
+  // ── SSE 流式问答 ──
+  // 依据已有消息配对出历史轮次 [{question, answer}]（调用前须排除当前提问）
+  function historyFor(s) {
+    var out = [];
+    var msgs = s.msgs;
+    for (var i = 0; i < msgs.length - 1; i++) {
+      if (msgs[i].role === "user" && msgs[i + 1] && msgs[i + 1].role === "bot") {
+        out.push({ question: msgs[i].content, answer: msgs[i + 1].content });
+        i++;
+      }
+    }
+    return out.slice(-MAX_HISTORY_ROUNDS);
+  }
+
+  async function ask(question) {
+    var s = active();
+    if (!s) { s = newSession(); }
+
+    // 先取历史，再写入本轮消息（否则当前提问会被当成历史，答案为空）
+    var history = historyFor(s);
+
+    // 用户消息入列
+    s.msgs.push({ role: "user", content: question });
+    if (s.title === "新对话") s.title = question.slice(0, 18);
+    save();
+    renderSessions();
+    $("chatTitle").textContent = s.title;
+
+    // 助手占位气泡
+    var botMsg = { role: "bot", content: "", meta: null };
+    s.msgs.push(botMsg);
+    wrap.innerHTML = "";
+    s.msgs.forEach(function (m) { wrap.appendChild(buildMessage(m)); });
+    var botEl = wrap.lastChild;
+    var bubble = botEl.querySelector(".bubble");
+    bubble.innerHTML = '<div class="thinking"><i></i><i></i><i></i><span style="margin-left:6px">正在检索医学知识库…</span></div>';
+    toBottom();
+
+    setStreaming(true);
+    controller = new AbortController();
+    var body = {
+      question: question,
+      session_id: s.id,
+      history: history
+    };
+
+    try {
+      var resp = await fetch(API + "/query/stream", {
+        method: "POST",
+        headers: baseHeaders(),
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      if (!resp.ok) {
+        var detail = "";
+        try { detail = (await resp.json()).detail || ""; } catch (e) {}
+        throw new Error(friendlyError(resp.status, detail));
+      }
+
+      var reader = resp.body.getReader();
+      var decoder = new TextDecoder("utf-8");
+      var buf = "";
+      var firstToken = true;
+
+      while (true) {
+        var r = await reader.read();
+        if (r.done) break;
+        buf += decoder.decode(r.value, { stream: true });
+        // 服务端 SSE 事件以 CRLF+CRLF 分隔，统一成 LF+LF 后再按 "\n\n" 切分
+        buf = buf.replace(/\r\n/g, "\n");
+        var idx;
+        while ((idx = buf.indexOf("\n\n")) >= 0) {
+          var chunk = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          var payload = parseSSE(chunk);
+          if (!payload) continue;
+          if (payload.type === "meta") {
+            botMsg.meta = { source: payload.source, sources: payload.sources || [] };
+          } else if (payload.type === "token") {
+            if (firstToken) { bubble.innerHTML = ""; firstToken = false; }
+            botMsg.content += payload.content || "";
+            bubble.innerHTML = renderText(botMsg.content) + '<span class="cursor"></span>';
+            scheduleScroll();
+          } else if (payload.type === "error") {
+            throw new Error(payload.message || "生成失败");
+          }
+        }
+      }
+      // 收尾：去掉光标，按最终内容重绘
+      botMsg.content = (botMsg.content || "").trim();
+      if (!botMsg.content) botMsg.content = "抱歉，暂时没有检索到相关资料。建议咨询您的主管医生。";
+      if (botEl.parentNode) {
+        var rebuilt = buildMessage(botMsg);
+        botEl.parentNode.replaceChild(rebuilt, botEl);
+      }
+    } catch (e) {
+      if (e.name === "AbortError") {
+        botMsg.content = bossFallback(botMsg.content);
+        var rebuilt2 = buildMessage(botMsg);
+        if (botEl.parentNode) botEl.parentNode.replaceChild(rebuilt2, botEl);
+      } else {
+        showBanner(e.message || "请求失败，请稍后重试");
+        botMsg.content = "（本次回答中断，请稍后重试）";
+        var rebuilt3 = buildMessage(botMsg);
+        if (botEl.parentNode) botEl.parentNode.replaceChild(rebuilt3, botEl);
+      }
+    } finally {
+      setStreaming(false);
+      controller = null;
+      save();
+      renderSessions();
+      toBottom();
+    }
+  }
+
+  function bossFallback(content) {
+    return (content && content.trim()) ? content + "\n（已停止生成）" : "（已停止生成）";
+  }
+
+  function scheduleScroll() {
+    if (renderTimer) return;
+    renderTimer = setTimeout(function () { renderTimer = null; toBottom(); }, 60);
+  }
+
+  function parseSSE(chunk) {
+    var lines = chunk.split(/\r?\n/);
+    var dataLines = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (!line || line.charAt(0) === ":") continue;      // 忽略注释 / 心跳
+      if (line.indexOf("data:") === 0) dataLines.push(line.slice(5).trim());
+    }
+    if (!dataLines.length) return null;
+    try { return JSON.parse(dataLines.join("\n")); } catch (e) { return null; }
+  }
+
+  function setStreaming(on) {
+    streaming = on;
+    $("sendBtn").hidden = on;
+    $("stopBtn").hidden = !on;
+    input.disabled = on;
+  }
+
+  function showBanner(text) {
+    var old = document.querySelector(".banner");
+    if (old) old.remove();
+    var el = document.createElement("div");
+    el.className = "banner";
+    el.textContent = text;
+    wrap.parentNode.insertBefore(el, wrap);
+    setTimeout(function () { el.remove(); }, 8000);
+  }
+
+  // ── 事件绑定 ──
+  function autoGrow() {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 160) + "px";
+  }
+
+  function submit() {
+    var q = input.value.trim();
+    if (!q || streaming) return;
+    input.value = "";
+    autoGrow();
+    ask(q);
+  }
+
+  input.addEventListener("input", autoGrow);
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }
+  });
+  $("sendBtn").onclick = submit;
+  $("stopBtn").onclick = function () { if (controller) controller.abort(); };
+  $("newChatBtn").onclick = function () { newSession(); closeSidebar(); input.focus(); };
+  $("clearBtn").onclick = function () {
+    var s = active(); if (!s) return;
+    if (!confirm("确定清空当前对话内容？")) return;
+    s.msgs = []; s.title = "新对话";
+    save(); renderSessions(); renderMessages(); $("chatTitle").textContent = "新对话";
+  };
+  $("menuBtn").onclick = function () { $("sidebar").classList.add("open"); $("overlay").classList.add("show"); };
+  $("overlay").onclick = closeSidebar;
+  function closeSidebar() { $("sidebar").classList.remove("open"); $("overlay").classList.remove("show"); }
+
+  $("sessionList").addEventListener("click", function (e) {
+    var del = e.target.closest("[data-del]");
+    if (del) { e.stopPropagation(); deleteSession(del.getAttribute("data-del")); return; }
+    var item = e.target.closest(".session-item");
+    if (!item) return;
+    activeId = item.getAttribute("data-id");
+    renderSessions(); renderMessages(); closeSidebar();
+  });
+
+  wrap.addEventListener("click", function (e) {
+    var chip = e.target.closest("[data-q]");
+    if (chip) { input.value = chip.getAttribute("data-q"); submit(); return; }
+    var copy = e.target.closest("[data-copy]");
+    if (copy) {
+      var bubble = copy.closest(".body").querySelector(".bubble");
+      var text = bubble ? bubble.innerText : "";
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(function () {
+        copy.textContent = "已复制";
+        setTimeout(function () { copy.textContent = "复制"; }, 1500);
+      });
+    }
+  });
+
+  // ── 初始化 ──
+  load();
+  if (!sessions.length) newSession();
+  else activeId = sessions[0].id;
+  renderSessions();
+  renderMessages();
+  input.focus();
+})();
+</script>
+</body>
+</html>

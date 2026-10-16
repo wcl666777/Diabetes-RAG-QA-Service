@@ -9,20 +9,18 @@
 因此这里不再重建 BM25 语料。
 """
 import argparse
+from typing import List
 
 from app.core import embedder, milvus_store
 from app.core.logger import get_logger
-from app.ingestion.loader import load_directory
+from app.ingestion.loader import load_directory, load_document
 from app.ingestion.splitter import split_parent_child
 
 logger = get_logger(__name__)
 
 
-def build_knowledge_base(dir_path: str) -> int:
-    """执行完整入库流程，返回写入的子块数。"""
-    logger.info("build_kb.start | dir=%s", dir_path)
-
-    docs = load_directory(dir_path)
+def _ingest_docs(docs: List[dict]) -> int:
+    """把已加载的文档切分 → 向量化 → 写入 Milvus，返回写入的子块数。"""
     if not docs:
         logger.warning("build_kb.no_docs")
         return 0
@@ -55,6 +53,28 @@ def build_knowledge_base(dir_path: str) -> int:
     milvus_store.insert_chunks(rows)
     logger.info("build_kb.done | children=%d", len(children))
     return len(children)
+
+
+def build_knowledge_base(dir_path: str) -> int:
+    """扫描目录下全部文档并入库，返回写入的子块数。"""
+    logger.info("build_kb.start | dir=%s", dir_path)
+    return _ingest_docs(load_directory(dir_path))
+
+
+def build_from_files(paths: List[str]) -> int:
+    """仅入库指定文件（供「上传文档增量入库」使用），返回写入的子块数。
+
+    与 build_knowledge_base 的区别：不扫描整个目录，只处理这批文件，
+    因此上传新文档时无需重建整个知识库。
+    """
+    docs: List[dict] = []
+    for path in paths:
+        try:
+            docs.extend(load_document(path))
+        except Exception as e:
+            logger.warning("build_kb.load_failed | file=%s | error=%s", path, e)
+    logger.info("build_kb.from_files | files=%d | docs=%d", len(paths), len(docs))
+    return _ingest_docs(docs)
 
 
 if __name__ == "__main__":
